@@ -648,15 +648,24 @@ function loadState() {
 function seed() {
   const now = Date.now();
   state.timers = [
-    newTimer({ name: 'Breastfeeding', mode: 'interval', intervalValue: 2, intervalUnit: 'hours',
-               windowType: 'allday', ringtone: 'chime', color: 0 }),
+    newTimer({ name: 'Breastfeeding',  mode: 'interval', intervalValue: 2, intervalUnit: 'hours',
+               windowType: 'allday', ringtone: 'chime', color: 0,
+               running: false }),                       // ← starts paused
     newTimer({ name: 'Hydration break', mode: 'interval', intervalValue: 3, intervalUnit: 'hours',
                windowType: 'range', windowStart: '09:00', windowEnd: '21:00',
-               ringtone: 'soft', color: 1 }),
+               ringtone: 'soft', color: 1,
+               running: false }),                       // ← starts paused
     newTimer({ name: 'Monthly check-in', mode: 'monthly', dayOfMonth: 1, timeOfDay: '09:00',
-               ringtone: 'bell', color: 2 }),
+               ringtone: 'bell', color: 2,
+               running: false }),                       // ← starts paused
   ];
-  state.timers.forEach(t => { t.lastAt = now; t.nextAt = computeNext(t, now); });
+  // Keep them enabled so they appear as "PAUSED" (Resume button) instead of "OFF".
+  state.timers.forEach(t => {
+    t.enabled = true;
+    t.running = false;
+    t.lastAt = now;
+    t.nextAt = computeNext(t, now);   // scheduled, but nothing will fire while paused
+  });
   saveState();
 }
 
