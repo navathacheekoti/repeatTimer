@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Repeat Timer</title>
+<meta name="theme-color" content="#7c3aed" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
+
+<style type="text/tailwindcss">
+  .input {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900
+           outline-none transition placeholder:text-slate-400
+           focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30
+           dark:border-white/15 dark:bg-[#1c1930] dark:text-slate-50
+           dark:placeholder:text-slate-500 dark:focus:border-purple-400 dark:focus:ring-purple-500/40;
+  }
+  .lbl { @apply block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5; }
+  .seg { @apply flex-1 rounded-lg py-2 text-xs sm:text-sm font-semibold transition; }
+  .chip { @apply h-9 w-9 rounded-full grid place-items-center text-xs font-bold border transition cursor-pointer select-none; }
+  .chip-on { @apply bg-gradient-to-br from-purple-600 to-blue-500 text-white border-transparent shadow-md shadow-purple-500/30; }
+  .chip-off { @apply border-slate-300 text-slate-600 hover:border-purple-500 hover:text-purple-600 dark:border-white/20 dark:text-slate-400 dark:hover:border-purple-400; }
+  .btn { @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition active:scale-95 disabled:opacity-50; }
+  .soft-btn { @apply border border-slate-300 hover:bg-slate-100 dark:border-white/15 dark:hover:bg-white/10; }
+</style>
+
+<style>
+  :root { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+  select option, select optgroup { background-color:#fff; color:#0f172a; }
+  html.dark select option { background-color:#1a1729; color:#e9e7f5; }
+  html.dark select optgroup { background-color:#14111f; color:#a78bfa; font-weight:600; }
+
+  @keyframes ringPulse {
+    0%,100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(139,92,246,.55); }
+    50%     { transform: scale(1.08); box-shadow: 0 0 0 24px rgba(139,92,246,0); }
+  }
+  .ringing { animation: ringPulse 1.15s ease-out infinite; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px) scale(.98);} to{opacity:1;transform:none;} }
+  .pop { animation: fadeUp .22s ease-out; }
+
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: rgba(139,92,246,.5); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,.75); }
+  ::-webkit-scrollbar-track { background: transparent; }
+  @media (prefers-reduced-motion: reduce) { .ringing, .pop { animation: none !important; } }
+
+  /* ---- Time Picker ---- */
+  .t-picker {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 5px 8px; border-radius: 12px;
+    border: 1px solid #cbd5e1; background: #fff;
+  }
+  html.dark .t-picker { border-color: rgba(255,255,255,0.15); background: #1c1930; }
+  .t-picker select {
+    border: none; background: transparent; outline: none; cursor: pointer;
+    font-size: 14px; font-weight: 700; color: inherit; padding: 2px 4px;
+    -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  }
+  html.dark .t-picker select option { background: #1c1930; color: #f1f5f9; }
+  .t-picker .tp-sep { color: #94a3b8; font-weight: 700; }
+  .t-picker .tp-ampm {
+    display: inline-flex; margin-left: 6px; border-radius: 8px; overflow: hidden;
+    border: 1px solid #e2e8f0;
+  }
+  html.dark .t-picker .tp-ampm { border-color: rgba(255,255,255,0.1); }
+  .t-picker .tp-ampm button {
+    padding: 4px 8px; font-size: 10px; font-weight: 800; letter-spacing: .04em;
+    cursor: pointer; background: transparent; color: #64748b; transition: all .15s;
+  }
+  html.dark .t-picker .tp-ampm button { color: #94a3b8; }
+  .t-picker .tp-ampm button.on { background: linear-gradient(135deg, #9333ea, #3b82f6); color: #fff; }
+  .t-picker .tp-ampm button:hover:not(.on) { background: rgba(139,92,246,0.12); }
+
+  /* ---- Calendar ---- */
+  .cal { user-select: none; }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-title { font-size: 14px; font-weight: 700; }
+  .cal-nav {
+    width: 32px; height: 32px; border-radius: 10px; border: 1px solid #cbd5e1;
+    background: transparent; font-size: 18px; font-weight: 700; color: inherit;
+    cursor: pointer; transition: all .15s; display: grid; place-items: center;
+  }
+  html.dark .cal-nav { border-color: rgba(255,255,255,0.12); }
+  .cal-nav:hover { background: rgba(139,92,246,0.1); border-color: #a78bfa; }
+  .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 6px; }
+  .cal-weekdays span { font-size: 10px; font-weight: 800; color: #94a3b8; text-align: center; letter-spacing: .05em; padding: 4px 0; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-cell {
+    aspect-ratio: 1 / 1; display: grid; place-items: center;
+    border-radius: 10px; font-size: 12px; font-weight: 700;
+    cursor: pointer; transition: all .12s;
+    border: 1.5px solid transparent; color: #334155;
+    background: transparent; font-family: inherit;
+  }
+  html.dark .cal-cell { color: #cbd5e1; }
+  .cal-cell:hover { background: rgba(139,92,246,0.14); }
+  .cal-cell.cal-sel {
+    background: linear-gradient(135deg, #9333ea, #3b82f6); color: #fff;
+    box-shadow: 0 4px 12px rgba(139,92,246,0.4);
+  }
+  .cal-cell.cal-sel:hover { filter: brightness(1.08); }
+  .cal-cell.cal-today:not(.cal-sel) { border-color: #a78bfa; }
+  .cal-cell.cal-empty { cursor: default; }
+  .cal-cell.cal-empty:hover { background: transparent; }
+  .cal-upcoming { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #cbd5e1; }
+  html.dark .cal-upcoming { border-color: rgba(255,255,255,0.1); }
+  .cal-upcoming-title {
+    font-size: 10px; font-weight: 800; letter-spacing: .12em;
+    text-transform: uppercase; color: #94a3b8; margin-bottom: 6px;
+  }
+  .cal-upcoming-list { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #475569; }
+  html.dark .cal-upcoming-list { color: #94a3b8; }
+  .cal-upcoming-list li { display: flex; align-items: center; gap: 4px; padding: 3px 0; font-variant-numeric: tabular-nums; }
+  .cal-upcoming-list li::before {
+    content: ''; display: inline-block; width: 6px; height: 6px;
+    border-radius: 50%; background: linear-gradient(135deg,#9333ea,#3b82f6); flex-shrink: 0;
+  }
+</style>
+</head>
+
+<body class="min-h-screen bg-gradient-to-br from-slate-100 via-purple-50 to-blue-100
+             dark:from-[#0a0a14] dark:via-[#0f0a1f] dark:to-[#0a0f1f]
+             text-slate-900 dark:text-slate-100 antialiased">
+
+<!-- ================= HEADER ================= -->
+<header class="sticky top-0 z-30 border-b border-slate-300/80 dark:border-white/10
+               bg-white/85 dark:bg-[#0b0a16]/85 backdrop-blur-xl shadow-sm">
+  <div class="mx-auto flex max-w-6xl items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
+    <div class="flex shrink-0 items-center gap-2">
+      <div class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-purple-600 to-blue-500
+                  text-white shadow-lg shadow-purple-500/35">
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M5 3 2 6"/><path d="m19 3 3 3"/>
+        </svg>
+      </div>
+      <h1 class="whitespace-nowrap bg-gradient-to-r from-purple-700 to-blue-600 bg-clip-text
+                 text-base font-extrabold tracking-tight text-transparent
+                 dark:from-purple-400 dark:to-blue-400 sm:text-xl">Repeat Timer</h1>
+    </div>
+
+    <div class="relative min-w-0 flex-1">
+      <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+           viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+      </svg>
+      <input id="search" type="text" placeholder="Search timers…" autocomplete="off"
+             class="w-full rounded-xl border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm
+                    text-slate-900 outline-none transition placeholder:text-slate-400
+                    focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30
+                    dark:border-white/15 dark:bg-white/10 dark:text-slate-50 dark:placeholder:text-slate-500" />
+    </div>
+
+    <button id="themeBtn" title="Toggle light / dark" aria-label="Toggle theme"
+            class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-300
+                   text-slate-700 transition hover:bg-slate-100
+                   dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/10">
+      <span id="themeIcon"></span>
+    </button>
+
+    <button id="addBtn"
+            class="btn shrink-0 bg-gradient-to-r from-purple-600 to-blue-500 px-3 py-2.5 text-white
+                   shadow-lg shadow-purple-500/30 hover:brightness-110 sm:px-4">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
+      <span class="hidden sm:inline">Add Timer</span>
+    </button>
+  </div>
+</header>
+
+<!-- ================= MAIN ================= -->
+<main class="mx-auto max-w-6xl px-3 py-6 sm:px-4">
+  <div id="cards" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+
+  <div id="empty" class="hidden flex-col items-center justify-center rounded-3xl border-2 border-dashed
+                         border-slate-300 bg-white/60 py-16 text-center dark:border-white/10 dark:bg-white/[0.02]">
+    <div class="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-purple-600 to-blue-500
+                text-white shadow-lg shadow-purple-500/35">
+      <svg class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/>
+      </svg>
+    </div>
+    <h3 class="mt-4 text-lg font-bold">No timers yet</h3>
+    <p class="mt-1 max-w-xs text-sm text-slate-600 dark:text-slate-400">
+      Create your first repeating reminder — for example every 2 hours, all day long.
+    </p>
+    <button onclick="openEditor()"
+            class="btn mt-5 bg-gradient-to-r from-purple-600 to-blue-500 px-5 py-2.5 text-white
+                   shadow-lg shadow-purple-500/30 hover:brightness-110">
+      Create a timer
+    </button>
+  </div>
+
+  <p id="noResults" class="hidden py-16 text-center text-sm text-slate-600 dark:text-slate-400">
+    No timers match your search.
+  </p>
+</main>
+
+<!-- ================= EDITOR MODAL ================= -->
+<div id="editor" class="fixed inset-0 z-40 hidden items-start justify-center overflow-y-auto
+                        bg-slate-900/60 p-3 backdrop-blur-sm dark:bg-black/75 sm:p-6">
+  <div class="pop my-4 w-full max-w-lg overflow-hidden rounded-3xl border border-slate-300 bg-white
+              shadow-2xl dark:border-white/10 dark:bg-[#12101f]">
+
+    <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
+      <h2 id="editorTitle" class="text-base font-bold">New Timer</h2>
+      <button id="closeEditor" aria-label="Close"
+              class="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition
+                     hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/10">
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="max-h-[68vh] space-y-5 overflow-y-auto p-5">
+
+      <div>
+        <label class="lbl" for="f-name">Timer name</label>
+        <input id="f-name" type="text" class="input" placeholder="e.g. Breastfeeding" autocomplete="off" />
+      </div>
+
+      <div>
+        <label class="lbl">Repeat mode</label>
+        <div id="f-mode" class="flex gap-1 rounded-xl bg-slate-200/70 p-1 dark:bg-white/5">
+          <button type="button" data-mode="interval" class="seg">Interval</button>
+          <button type="button" data-mode="weekly"   class="seg">Weekly</button>
+          <button type="button" data-mode="monthly"  class="seg">Monthly</button>
+        </div>
+      </div>
+
+      <!-- INTERVAL -->
+      <div data-sec="interval" class="space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="lbl" for="f-interval">Ring every</label>
+            <input id="f-interval" type="number" min="1" max="1440" class="input" />
+          </div>
+          <div>
+            <label class="lbl" for="f-unit">Unit</label>
+            <select id="f-unit" class="input">
+              <option value="minutes">Minutes</option>
+              <option value="hours">Hours</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="lbl">Active window</label>
+          <div id="f-window" class="flex gap-1 rounded-xl bg-slate-200/70 p-1 dark:bg-white/5">
+            <button type="button" data-win="allday" class="seg">Whole day (24h)</button>
+            <button type="button" data-win="range"  class="seg">Time range</button>
+          </div>
+          <div id="f-range" class="mt-3 hidden grid-cols-2 gap-3">
+            <div>
+              <label class="lbl">From</label>
+              <div data-tpicker="win-start"></div>
+            </div>
+            <div>
+              <label class="lbl">To</label>
+              <div data-tpicker="win-end"></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="lbl">Repeat on days</label>
+          <div id="f-days" class="flex flex-wrap gap-1.5"></div>
+        </div>
+      </div>
+
+      <!-- WEEKLY -->
+      <div data-sec="weekly" class="hidden">
+        <label class="lbl">Tap a day to repeat weekly</label>
+        <div class="cal rounded-2xl border border-slate-300 bg-slate-50/60 p-3
+                    dark:border-white/10 dark:bg-white/[0.02]" data-cal="weekly"></div>
+      </div>
+
+      <!-- MONTHLY -->
+      <div data-sec="monthly" class="hidden">
+        <label class="lbl">Tap a date to repeat monthly</label>
+        <div class="cal rounded-2xl border border-slate-300 bg-slate-50/60 p-3
+                    dark:border-white/10 dark:bg-white/[0.02]" data-cal="monthly"></div>
+      </div>
+
+      <!-- TIME -->
+      <div data-sec="time" class="hidden">
+        <label class="lbl">Ring at</label>
+        <div data-tpicker="time"></div>
+      </div>
+
+      <!-- SOUND -->
+      <div class="space-y-3 rounded-2xl border border-slate-300 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+        <div>
+          <label class="lbl" for="f-ringtone">Ringtone</label>
+          <div class="flex gap-2">
+            <select id="f-ringtone" class="input"></select>
+            <button type="button" id="previewBtn" title="Preview"
+                    class="btn soft-btn shrink-0 px-3">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+              </svg>
+              <span class="hidden sm:inline">Play</span>
+            </button>
+            <button type="button" id="delToneBtn" title="Delete this uploaded ringtone"
+                    class="btn hidden shrink-0 border border-rose-300 px-3 text-rose-600
+                           hover:bg-rose-50 dark:border-rose-500/40 dark:text-rose-400 dark:hover:bg-rose-500/10">
+              ✕
+            </button>
+          </div>
+
+          <label class="btn soft-btn mt-2 w-full cursor-pointer border-dashed py-2.5 text-slate-700 dark:text-slate-200">
+            <input id="f-file" type="file" accept="audio/*" class="hidden" />
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 20h16"/>
+            </svg>
+            Upload a song from this device
+          </label>
+          <p id="fileHint" class="mt-1.5 min-h-[14px] text-[11px] text-slate-500 dark:text-slate-400"></p>
+        </div>
+
+        <div>
+          <label class="lbl" for="f-volume">Volume</label>
+          <input id="f-volume" type="range" min="0" max="1" step="0.05" class="w-full accent-purple-600" />
+        </div>
+
+        <label class="flex cursor-pointer items-center justify-between gap-3">
+          <span class="text-sm font-medium">Keep ringing until I stop it</span>
+          <input id="f-loop" type="checkbox" class="h-5 w-5 rounded accent-purple-600" />
+        </label>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between gap-2 border-t border-slate-200 px-5 py-4 dark:border-white/10">
+      <span class="hidden text-[11px] text-slate-500 dark:text-slate-400 sm:inline">
+        Tip: press <kbd class="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-bold dark:border-white/20">Enter</kbd> to save
+      </span>
+      <div class="ml-auto flex gap-2">
+        <button id="cancelBtn" class="btn soft-btn px-4 py-2.5">Cancel</button>
+        <button id="saveBtn"
+                class="btn bg-gradient-to-r from-purple-600 to-blue-500 px-5 py-2.5 text-white
+                       shadow-lg shadow-purple-500/30 hover:brightness-110">
+          Save Timer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= ALARM OVERLAY ================= -->
+<div id="alarm" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md">
+  <div class="pop w-full max-w-sm rounded-3xl border border-purple-200 bg-white p-6 text-center
+              shadow-2xl dark:border-purple-500/30 dark:bg-[#12101f]">
+
+    <div class="ringing mx-auto grid h-20 w-20 place-items-center rounded-full
+                bg-gradient-to-br from-purple-600 to-blue-500 text-white shadow-xl shadow-purple-500/40">
+      <svg class="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.7 21a2 2 0 0 1-3.4 0"/>
+      </svg>
+    </div>
+
+    <p class="mt-5 text-[11px] font-bold uppercase tracking-[0.2em] text-purple-700 dark:text-purple-400">
+      Reminder
+    </p>
+    <h2 id="alarmName" class="mt-1 text-2xl font-extrabold"></h2>
+    <p id="alarmSub" class="mt-1 text-xs text-slate-600 dark:text-slate-400"></p>
+
+    <div class="mt-6 space-y-2">
+      <button onclick="snoozeAlarm()"
+              class="btn w-full bg-gradient-to-r from-purple-600 to-blue-500 px-4 py-3 text-white
+                     shadow-lg shadow-purple-500/30 hover:brightness-110">
+        Snooze 5 minutes
+      </button>
+      <button onclick="dismissAlarm()" class="btn soft-btn w-full px-4 py-3">
+        Stop — keep repeating
+      </button>
+      <button onclick="stopRecurring()"
+              class="btn w-full px-4 py-3 text-rose-600 transition hover:bg-rose-50
+                     dark:text-rose-400 dark:hover:bg-rose-500/10">
+        Stop repeating (turn this timer off)
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   HELPERS — safe DOM access
+   ========================================================================= */
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = n => String(n).padStart(2, '0');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/** Safe value setter — no-op if the element doesn't exist. */
+function setVal(sel, val) {
+  const el = typeof sel === 'string' ? $(sel) : sel;
+  if (el) el.value = val;
+}
+/** Safe checked setter. */
+function setChecked(sel, val) {
+  const el = typeof sel === 'string' ? $(sel) : sel;
+  if (el) el.checked = !!val;
+}
+/** Safe read — returns fallback if missing. */
+function getVal(sel, fallback = '') {
+  const el = typeof sel === 'string' ? $(sel) : sel;
+  return el ? el.value : fallback;
+}
+
+const ALL_DAYS   = [0,1,2,3,4,5,6];
+const DAY_LABELS = ['S','M','T','W','T','F','S'];
+const DAY_NAMES  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+const toMin = s => { const [h,m] = (s || '00:00').split(':').map(Number); return (h*60) + (m||0); };
+const fmt12 = hm => {
+  const [h,m] = (hm || '09:00').split(':').map(Number);
+  const ap = h < 12 ? 'AM' : 'PM';
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh}:${pad(m)} ${ap}`;
+};
+const fmtClock = ts => new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+function fmtDuration(ms) {
+  if (ms < 0) ms = 0;
+  const total = Math.floor(ms / 1000);
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (d > 0) return `${d}d ${pad(h)}:${pad(m)}:${pad(s)}`;
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+function showToast(msg, type = 'info') {
+  const colors = {
+    info:  'bg-gradient-to-r from-purple-600 to-blue-500 text-white',
+    warn:  'bg-amber-500 text-white',
+    error: 'bg-rose-500 text-white',
+    ok:    'bg-emerald-500 text-white',
+  };
+  const el = document.createElement('div');
+  el.className = 'pop fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] rounded-xl px-4 py-3 ' +
+                 'text-sm font-semibold shadow-2xl shadow-purple-900/30 max-w-[90vw] text-center ' +
+                 (colors[type] || colors.info);
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity .35s'; el.style.opacity = '0'; }, 2800);
+  setTimeout(() => el.remove(), 3200);
+}
+
+/* =========================================================================
+   RINGTONES (Web Audio API)
+   ========================================================================= */
+const RINGTONES = {
+  chime:   { label: 'Chime',       loop: 2.4, notes: [[784,0,.5,'sine',.5],[1047,.18,.6,'sine',.45],[1319,.36,.9,'sine',.4]] },
+  bell:    { label: 'Bell',        loop: 2.6, notes: [[523.25,0,1.6,'triangle',.5],[659.25,.04,1.4,'triangle',.35]] },
+  digital: { label: 'Digital',     loop: 1.2, notes: [[1200,0,.09,'square',.32],[1600,.16,.09,'square',.32],[1200,.32,.09,'square',.32]] },
+  beep:    { label: 'Beep',        loop: 1.0, notes: [[880,0,.14,'square',.28],[880,.22,.14,'square',.28]] },
+  soft:    { label: 'Soft Pad',    loop: 3.0, notes: [[440,0,1.5,'sine',.4],[554.37,.12,1.5,'sine',.3],[659.25,.24,1.5,'sine',.25]] },
+  alarm:   { label: 'Alarm Clock', loop: 1.6, notes: [[1000,0,.12,'sawtooth',.22],[1000,.18,.12,'sawtooth',.22],[1000,.36,.12,'sawtooth',.22],[1000,.54,.12,'sawtooth',.22]] },
+};
+
+let audioCtx = null, masterGain = null, soundTimer = null, currentAudio = null;
+
+function ensureAudio() {
+  try {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      audioCtx = new AC();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = 0.7;
+      masterGain.connect(audioCtx.destination);
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return true;
+  } catch (e) { return false; }
+}
+
+function stopSound() {
+  if (soundTimer) { clearInterval(soundTimer); soundTimer = null; }
+  if (currentAudio) { try { currentAudio.pause(); currentAudio.currentTime = 0; } catch (e) {} currentAudio = null; }
+}
+
+function playRingtone(id, volume = 0.7, loop = true) {
+  stopSound();
+  const vol = Math.min(1, Math.max(0, Number(volume) || 0.7));
+
+  const custom = customRingtones.find(r => r.id === id);
+  if (custom) {
+    try {
+      const a = new Audio(custom.url);
+      a.loop = !!loop;
+      a.volume = vol;
+      a.preload = 'auto';
+      const p = a.play();
+      if (p && p.catch) p.catch(err => console.warn('Audio play blocked:', err));
+      currentAudio = a;
+    } catch (e) { console.warn(e); }
+    return;
+  }
+
+  if (!ensureAudio()) return;
+  const r = RINGTONES[id] || RINGTONES.chime;
+
+  const fire = () => {
+    const c = audioCtx;
+    const t0 = c.currentTime + 0.02;
+    r.notes.forEach(([f, off, dur, type, g]) => {
+      const o  = c.createOscillator();
+      const gn = c.createGain();
+      o.type = type;
+      o.frequency.value = f;
+      o.connect(gn); gn.connect(masterGain);
+      const st = t0 + off;
+      gn.gain.setValueAtTime(0.0001, st);
+      gn.gain.exponentialRampToValueAtTime(Math.max(0.001, g), st + 0.02);
+      gn.gain.exponentialRampToValueAtTime(0.0001, st + dur);
+      o.start(st);
+      o.stop(st + dur + 0.1);
+    });
+  };
+
+  try { masterGain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.02); }
+  catch (e) { masterGain.gain.value = vol; }
+
+  fire();
+  if (loop) soundTimer = setInterval(fire, r.loop * 1000);
+}
+
+/* =========================================================================
+   CUSTOM RINGTONES — IndexedDB
+   ========================================================================= */
+const DB_NAME = 'repeat-timer-db', DB_VER = 1, STORE = 'sounds';
+let customRingtones = [];
+
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) return reject(new Error('IndexedDB unavailable'));
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+async function idbPut(rec) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(rec);
+    tx.oncomplete = () => res();
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+async function idbAll() {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const rq = tx.objectStore(STORE).getAll();
+    rq.onsuccess = () => res(rq.result || []);
+    rq.onerror   = () => rej(rq.error);
+  });
+}
+async function idbDel(id) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = () => res();
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+
+async function loadCustomRingtones() {
+  try {
+    const rows = await idbAll();
+    customRingtones = rows
+      .filter(r => r && r.blob)
+      .map(r => ({ id: r.id, name: r.name, blob: r.blob, url: URL.createObjectURL(r.blob) }));
+  } catch (e) { console.warn('Could not restore uploaded ringtones:', e); }
+}
+
+/* =========================================================================
+   STATE + PERSISTENCE
+   ========================================================================= */
+const STORE_KEY = 'repeat-timer-v3';
+let state     = { timers: [], theme: 'dark' };
+let ringingId = null;
+let editingId = null;
+let draft     = null;
+let pendingAlarms = [];
+let calView = { year: new Date().getFullYear(), month: new Date().getMonth() };
+
+function newTimer(p = {}) {
+  return Object.assign({
+    id: uid(),
+    name: '',
+    enabled: true,
+    running: true,
+    mode: 'interval',
+    intervalValue: 2,
+    intervalUnit: 'hours',
+    windowType: 'allday',
+    windowStart: '09:00',
+    windowEnd: '21:00',
+    days: [...ALL_DAYS],
+    timeOfDay: '09:00',
+    dayOfMonth: new Date().getDate(),
+    ringtone: 'chime',
+    volume: 0.7,
+    loopAlarm: true,
+    color: Math.floor(Math.random() * 4),
+    lastAt: Date.now(),
+    nextAt: null,
+  }, p);
+}
+
+function saveState() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      state = { timers: Array.isArray(p.timers) ? p.timers : [], theme: p.theme || 'dark' };
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+function seed() {
+  const now = Date.now();
+  state.timers = [
+    newTimer({ name: 'Breastfeeding', mode: 'interval', intervalValue: 2, intervalUnit: 'hours',
+               windowType: 'allday', ringtone: 'chime', color: 0 }),
+    newTimer({ name: 'Hydration break', mode: 'interval', intervalValue: 3, intervalUnit: 'hours',
+               windowType: 'range', windowStart: '09:00', windowEnd: '21:00',
+               ringtone: 'soft', color: 1 }),
+    newTimer({ name: 'Monthly check-in', mode: 'monthly', dayOfMonth: 1, timeOfDay: '09:00',
+               ringtone: 'bell', color: 2 }),
+  ];
+  state.timers.forEach(t => { t.lastAt = now; t.nextAt = computeNext(t, now); });
+  saveState();
+}
+
+/* =========================================================================
+   SCHEDULING ENGINE
+   ========================================================================= */
+function activeDays(t) {
+  const d = Array.isArray(t.days) && t.days.length ? t.days : ALL_DAYS;
+  return d.map(Number);
+}
+function intervalMs(t) {
+  const v = Math.max(1, Number(t.intervalValue) || 1);
+  return v * (t.intervalUnit === 'minutes' ? 60000 : 3600000);
+}
+
+function computeNext(t, from) {
+  if (t.mode === 'weekly')  return nextWeekly(t, from);
+  if (t.mode === 'monthly') return nextMonthly(t, from);
+  return nextInterval(t, from);
+}
+
+function nextInterval(t, from) {
+  const step = intervalMs(t);
+  const days = activeDays(t);
+  const ws = t.windowType === 'range' ? toMin(t.windowStart) : 0;
+  const we = t.windowType === 'range' ? toMin(t.windowEnd)   : 1439;
+  const base = new Date(from);
+
+  for (let i = 0; i < 400; i++) {
+    const day = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    if (!days.includes(day.getDay())) continue;
+
+    const startMs = day.getTime() + ws * 60000;
+    const endMs   = day.getTime() + we * 60000;
+    if (from > endMs) continue;
+
+    let slot;
+    if (from <= startMs) slot = startMs;
+    else {
+      const k = Math.floor((from - startMs) / step) + 1;
+      slot = startMs + k * step;
+    }
+    if (slot <= endMs) return slot;
+  }
+  return from + step;
+}
+
+function nextWeekly(t, from) {
+  const days = activeDays(t);
+  const [h, m] = (t.timeOfDay || '09:00').split(':').map(Number);
+  for (let i = 0; i < 400; i++) {
+    const d = new Date(from);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + i);
+    if (!days.includes(d.getDay())) continue;
+    d.setHours(h || 0, m || 0, 0, 0);
+    if (d.getTime() > from) return d.getTime();
+  }
+  return from + 86400000;
+}
+
+function nextMonthly(t, from) {
+  const [h, m] = (t.timeOfDay || '09:00').split(':').map(Number);
+  const dom = Math.min(31, Math.max(1, Number(t.dayOfMonth) || 1));
+  const base = new Date(from);
+  for (let i = 0; i < 24; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth() + i, 1, h || 0, m || 0, 0, 0);
+    const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(dom, dim));
+    if (d.getTime() > from) return d.getTime();
+  }
+  return from + 30 * 86400000;
+}
+
+function nextN(t, n, from = Date.now()) {
+  const out = [];
+  let cur = from;
+  for (let i = 0; i < n; i++) {
+    let nxt;
+    try { nxt = computeNext(t, cur); } catch (e) { break; }
+    if (!isFinite(nxt)) break;
+    out.push(nxt);
+    cur = nxt + 60000;
+  }
+  return out;
+}
+
+/* =========================================================================
+   DESCRIPTIONS
+   ========================================================================= */
+function daysText(days, long = false) {
+  const d = [...(days || [])].sort();
+  if (d.length === 0 || d.length === 7) return 'Every day';
+  if (d.length === 5 && d.join() === '1,2,3,4,5') return 'Weekdays';
+  if (d.length === 2 && d.join() === '0,6') return 'Weekends';
+  return d.map(i => (long ? DAY_NAMES[i] : DAY_LABELS[i])).join(' ');
+}
+
+function describe(t) {
+  if (t.mode === 'interval') {
+    const v = Number(t.intervalValue) || 1;
+    const unit = t.intervalUnit === 'minutes'
+      ? (v === 1 ? 'minute' : 'minutes')
+      : (v === 1 ? 'hour' : 'hours');
+    const win = t.windowType === 'allday'
+      ? '24 hours'
+      : `${fmt12(t.windowStart)} – ${fmt12(t.windowEnd)}`;
+    const dayTxt  = daysText(t.days);
+    const dayPart = dayTxt === 'Every day' ? '' : ` · ${dayTxt}`;
+    return `Every ${v} ${unit} · ${win}${dayPart}`;
+  }
+  if (t.mode === 'weekly') return `Weekly · ${daysText(t.days, true)} · ${fmt12(t.timeOfDay)}`;
+  return `Monthly · day ${t.dayOfMonth} · ${fmt12(t.timeOfDay)}`;
+}
+
+/* =========================================================================
+   TIME PICKER
+   ========================================================================= */
+function initTimePicker(container) {
+  if (!container || container.dataset.init === '1') return;
+  container.dataset.init = '1';
+  container.classList.add('t-picker');
+
+  const hours = Array.from({length: 12}, (_, i) => i + 1);
+  const mins  = Array.from({length: 60}, (_, i) => i);
+
+  container.innerHTML = `
+    <select class="tp-h" aria-label="Hour">${hours.map(h => `<option value="${h}">${h}</option>`).join('')}</select>
+    <span class="tp-sep">:</span>
+    <select class="tp-m" aria-label="Minute">${mins.map(m => `<option value="${pad(m)}">${pad(m)}</option>`).join('')}</select>
+    <div class="tp-ampm">
+      <button type="button" data-ampm="AM">AM</button>
+      <button type="button" data-ampm="PM">PM</button>
+    </div>
+  `;
+
+  container.addEventListener('click', e => {
+    const b = e.target.closest('[data-ampm]');
+    if (!b) return;
+    const v = b.dataset.ampm;
+    container.querySelectorAll('[data-ampm]').forEach(x =>
+      x.classList.toggle('on', x.dataset.ampm === v));
+  });
+}
+
+function setTimePickerValue(container, value24) {
+  if (!container) return;
+  initTimePicker(container);
+  const [h24, m] = (value24 || '09:00').split(':').map(Number);
+  let h12 = h24 % 12; if (h12 === 0) h12 = 12;
+  const ampm = h24 < 12 ? 'AM' : 'PM';
+  const hSel = container.querySelector('.tp-h');
+  const mSel = container.querySelector('.tp-m');
+  if (hSel) hSel.value = h12;
+  if (mSel) mSel.value = pad(m || 0);
+  container.querySelectorAll('[data-ampm]').forEach(x =>
+    x.classList.toggle('on', x.dataset.ampm === ampm));
+}
+
+function getTimePickerValue(container) {
+  if (!container) return '09:00';
+  const hSel = container.querySelector('.tp-h');
+  const mSel = container.querySelector('.tp-m');
+  if (!hSel || !mSel) return '09:00';
+
+  const h12 = Number(hSel.value) || 12;
+  const m   = Number(mSel.value) || 0;
+  const onBtn = container.querySelector('[data-ampm].on');
+  const ap = onBtn ? onBtn.dataset.ampm : 'AM';
+  let h24 = h12 % 12;
+  if (ap === 'PM') h24 += 12;
+  return pad(h24) + ':' + pad(m);
+}
+
+/* =========================================================================
+   CALENDAR RENDERING
+   ========================================================================= */
+function renderCalendarInto(container, mode) {
+  if (!container || !draft) return;
+
+  const year = calView.year, month = calView.month;
+  const firstDay = new Date(year, month, 1);
+  const startWd  = firstDay.getDay();
+  const dim      = new Date(year, month + 1, 0).getDate();
+  const todayStr = new Date().toDateString();
+
+  const monthLabel = firstDay.toLocaleDateString([], { month: 'long', year: 'numeric' });
+  const wd = ['S','M','T','W','T','F','S'];
+
+  let cells = '';
+  for (let i = 0; i < startWd; i++) cells += `<div class="cal-cell cal-empty"></div>`;
+
+  const selectedDays = mode === 'weekly' ? (draft.days || []) : [];
+  const selectedDom  = mode === 'monthly' ? (draft.dayOfMonth || 0) : 0;
+
+  for (let d = 1; d <= dim; d++) {
+    const date = new Date(year, month, d);
+    const dow  = date.getDay();
+    const isToday = date.toDateString() === todayStr;
+
+    let sel = false;
+    if (mode === 'weekly')  sel = selectedDays.includes(dow);
+    if (mode === 'monthly') sel = (d === selectedDom);
+
+    cells += `<button type="button"
+      class="cal-cell ${sel ? 'cal-sel' : ''} ${isToday ? 'cal-today' : ''}"
+      data-cal-day="${d}">${d}</button>`;
+  }
+
+  // Preview of next 5 rings using the CURRENT draft + live time-picker value
+  const previewTimer = Object.assign({}, draft, {
+    mode: mode,
+    timeOfDay: getTimePickerValue($('[data-tpicker="time"]')) || draft.timeOfDay || '09:00',
+  });
+  if (mode === 'weekly') {
+    if (!previewTimer.days || !previewTimer.days.length) previewTimer.days = [new Date().getDay()];
+  }
+  const upcoming = nextN(previewTimer, 5);
+
+  const upHtml = upcoming.length
+    ? upcoming.map(ts => {
+        const d = new Date(ts);
+        return `<li>${esc(d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }))}
+                · ${esc(d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}</li>`;
+      }).join('')
+    : '<li class="text-slate-400">Select a day above</li>';
+
+  container.innerHTML = `
+    <div class="cal-head">
+      <button type="button" class="cal-nav" data-cal-prev aria-label="Previous month">‹</button>
+      <span class="cal-title">${esc(monthLabel)}</span>
+      <button type="button" class="cal-nav" data-cal-next aria-label="Next month">›</button>
+    </div>
+    <div class="cal-weekdays">${wd.map(x => `<span>${x}</span>`).join('')}</div>
+    <div class="cal-grid">${cells}</div>
+    <div class="cal-upcoming">
+      <p class="cal-upcoming-title">Next 5 rings</p>
+      <ul class="cal-upcoming-list">${upHtml}</ul>
+    </div>
+  `;
+}
+
+function renderAllCalendars() {
+  if (!draft) return;
+  $$('[data-cal]').forEach(c => renderCalendarInto(c, c.dataset.cal));
+}
+
+/* =========================================================================
+   CARD RENDERING
+   ========================================================================= */
+const ACCENTS = [
+  'from-purple-600 to-blue-500',
+  'from-fuchsia-500 to-purple-600',
+  'from-blue-500 to-cyan-400',
+  'from-violet-500 to-indigo-500',
+];
+
+function cardHTML(t) {
+  const off    = !t.enabled;
+  const paused = t.enabled && !t.running;
+  const inert  = off || paused;
+  const accent = ACCENTS[(t.color || 0) % ACCENTS.length];
+
+  return `
+  <article data-card="${t.id}"
+    class="pop relative overflow-hidden rounded-2xl border bg-white p-5 shadow-lg shadow-slate-300/40
+           transition hover:shadow-xl hover:shadow-purple-500/15
+           dark:bg-white/[0.05] dark:shadow-none
+           ${off ? 'border-slate-200 opacity-60 dark:border-white/10'
+                 : 'border-slate-200 dark:border-white/10'}">
+
+    <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accent}"></div>
+
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0 flex-1">
+        <h3 data-name="${t.id}"
+            title="Click to rename"
+            class="-mx-1 cursor-text truncate rounded-lg px-1 text-base font-bold text-slate-900
+                   transition hover:bg-purple-100/70 dark:text-slate-50 dark:hover:bg-white/10"
+        >${esc(t.name || 'Untitled timer')}</h3>
+        <p class="mt-0.5 text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+          ${esc(describe(t))}
+        </p>
+      </div>
+
+      <button data-act="power" data-id="${t.id}" aria-label="Toggle timer"
+        title="${off ? 'Turn on' : 'Turn off'}"
+        class="relative h-6 w-11 shrink-0 rounded-full transition
+               ${off ? 'bg-slate-300 dark:bg-white/15'
+                     : 'bg-gradient-to-r from-purple-600 to-blue-500'}">
+        <span class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all
+                     ${off ? 'left-0.5' : 'left-[22px]'}"></span>
+      </button>
+    </div>
+
+    <div class="mt-5 text-center">
+      <div data-countdown
+        class="font-mono text-3xl font-bold tabular-nums tracking-tight
+               ${inert ? 'text-slate-400 dark:text-slate-600'
+                       : 'bg-gradient-to-r from-purple-700 to-blue-600 bg-clip-text text-transparent dark:from-purple-400 dark:to-blue-400'}">
+        --:--
+      </div>
+      <p data-sub class="mt-1 text-[11px] text-slate-600 dark:text-slate-400">…</p>
+    </div>
+
+    <div class="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+      <div data-bar class="h-full rounded-full bg-gradient-to-r ${accent} transition-[width] duration-1000 ease-linear"
+           style="width:0%"></div>
+    </div>
+
+    <div class="mt-4 flex items-center gap-2">
+      <button data-act="toggle" data-id="${t.id}" class="btn soft-btn flex-1">
+        ${paused
+          ? `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Resume`
+          : `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg> Pause`}
+      </button>
+      <button data-act="edit" data-id="${t.id}" title="Edit" class="btn soft-btn px-3">
+        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+        </svg>
+      </button>
+      <button data-act="test" data-id="${t.id}" title="Preview ringtone" class="btn soft-btn px-3">
+        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+        </svg>
+      </button>
+      <button data-act="del" data-id="${t.id}" title="Delete"
+        class="btn border border-slate-300 px-3 text-rose-600 hover:bg-rose-50
+               dark:border-white/15 dark:text-rose-400 dark:hover:bg-rose-500/10">
+        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/>
+        </svg>
+      </button>
+    </div>
+  </article>`;
+}
+
+function render() {
+  const searchEl = $('#search');
+  const q = (searchEl ? searchEl.value : '').toLowerCase().trim();
+  const list = state.timers.filter(t => !q || (t.name || '').toLowerCase().includes(q));
+
+  const cardsEl = $('#cards');
+  if (cardsEl) cardsEl.innerHTML = list.map(cardHTML).join('');
+
+  const hasTimers = state.timers.length > 0;
+  const empty = $('#empty');
+  if (empty) {
+    empty.classList.toggle('hidden', hasTimers);
+    empty.classList.toggle('flex',  !hasTimers);
+  }
+  const noRes = $('#noResults');
+  if (noRes) noRes.classList.toggle('hidden', !(hasTimers && list.length === 0));
+
+  updateCountdowns();
+  scheduleNext();
+}
+
+function updateCountdowns() {
+  const now = Date.now();
+  for (const t of state.timers) {
+    const card = document.querySelector(`[data-card="${t.id}"]`);
+    if (!card) continue;
+    const cd  = card.querySelector('[data-countdown]');
+    const sub = card.querySelector('[data-sub]');
+    const bar = card.querySelector('[data-bar]');
+    if (!cd || !sub || !bar) continue;
+
+    if (!t.enabled) {
+      cd.textContent = 'OFF'; sub.textContent = 'Timer is turned off'; bar.style.width = '0%'; continue;
+    }
+    if (!t.running) {
+      cd.textContent = 'PAUSED'; sub.textContent = 'Tap Resume to continue'; bar.style.width = '0%'; continue;
+    }
+    if (!t.nextAt) {
+      t.lastAt = now; t.nextAt = computeNext(t, now); saveState();
+    }
+
+    cd.textContent  = fmtDuration(t.nextAt - now);
+    sub.textContent = 'Next ring at ' + fmtClock(t.nextAt);
+
+    const total = Math.max(1, t.nextAt - t.lastAt);
+    const pct   = Math.min(100, Math.max(0, ((now - t.lastAt) / total) * 100));
+    bar.style.width = pct + '%';
+  }
+}
+
+/* =========================================================================
+   TICK + SCHEDULER
+   ========================================================================= */
+let preciseTimer = null;
+
+function scheduleNext() {
+  if (preciseTimer) { clearTimeout(preciseTimer); preciseTimer = null; }
+  const now = Date.now();
+  let soonest = Infinity;
+  for (const t of state.timers) {
+    if (t.enabled && t.running && t.nextAt && t.nextAt > now) {
+      soonest = Math.min(soonest, t.nextAt);
+    }
+  }
+  if (soonest === Infinity) return;
+  const delay = Math.max(250, Math.min(soonest - now, 2147483647));
+  preciseTimer = setTimeout(() => { tick(); scheduleNext(); }, delay);
+}
+
+function tick() {
+  const now = Date.now();
+  let dirty = false;
+
+  for (const t of state.timers) {
+    if (!t.enabled || !t.running) continue;
+
+    if (!t.nextAt) {
+      t.lastAt = now;
+      t.nextAt = computeNext(t, now);
+      dirty = true;
+      continue;
+    }
+
+    if (now >= t.nextAt) {
+      const lateBy = now - t.nextAt;
+      const firedAt = t.nextAt;
+      t.lastAt = firedAt;
+      t.nextAt = computeNext(t, now + 500);
+      dirty = true;
+
+      if (lateBy < 5 * 60000) {
+        triggerAlarm(t);
+      } else {
+        showToast(`Missed reminder: ${t.name || 'Timer'}`, 'warn');
+      }
+    }
+  }
+
+  if (dirty) { saveState(); scheduleNext(); }
+  updateCountdowns();
+}
+
+/* =========================================================================
+   ALARM
+   ========================================================================= */
+let titleTimer = null, titleFlip = false;
+let vibTimer = null;
+let alarmWakeLock = null;
+
+function triggerAlarm(t) {
+  if (ringingId) { pendingAlarms.push(t.id); return; }
+  showAlarm(t);
+}
+
+function showAlarm(t) {
+  ringingId = t.id;
+
+  const nm = $('#alarmName'); if (nm) nm.textContent = t.name || 'Untitled timer';
+  const sb = $('#alarmSub');  if (sb) sb.textContent  = describe(t) + ' · next at ' + fmtClock(t.nextAt);
+
+  const ov = $('#alarm');
+  if (ov) { ov.classList.remove('hidden'); ov.classList.add('flex'); }
+  document.body.style.overflow = 'hidden';
+
+  playRingtone(t.ringtone, t.volume, t.loopAlarm);
+  if (t.loopAlarm) startVibrate();
+  startTitleFlash();
+  requestAlarmWakeLock();
+  sendNotification(t);
+}
+
+function hideAlarm() {
+  const ov = $('#alarm');
+  if (ov) { ov.classList.add('hidden'); ov.classList.remove('flex'); }
+  document.body.style.overflow = '';
+
+  stopSound(); stopVibrate(); stopTitleFlash(); releaseAlarmWakeLock();
+  ringingId = null;
+
+  if (pendingAlarms.length) {
+    const nid = pendingAlarms.shift();
+    const t = state.timers.find(x => x.id === nid);
+    if (t) setTimeout(() => showAlarm(t), 400);
+  }
+}
+
+function snoozeAlarm() {
+  const t = state.timers.find(x => x.id === ringingId);
+  if (t) { t.lastAt = Date.now(); t.nextAt = Date.now() + 5 * 60000; saveState(); }
+  hideAlarm(); render();
+}
+function dismissAlarm() { hideAlarm(); render(); }
+function stopRecurring() {
+  const t = state.timers.find(x => x.id === ringingId);
+  if (t) { t.enabled = false; t.running = false; saveState(); }
+  hideAlarm(); render();
+}
+
+let swReg = null;
+const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><rect width="192" height="192" rx="44" fill="url(#g)"/><circle cx="96" cy="104" r="52" fill="none" stroke="#fff" stroke-width="12"/><path d="M96 74v30l20 20" stroke="#fff" stroke-width="12" fill="none" stroke-linecap="round"/></svg>`;
+const ICON_URL = 'data:image/svg+xml,' + encodeURIComponent(ICON_SVG);
+
+async function tryRegisterSW() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const code = `
+      self.addEventListener('install', e => self.skipWaiting());
+      self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+      self.addEventListener('notificationclick', e => {
+        e.notification.close();
+        e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(cs => {
+          for (const c of cs) { if ('focus' in c) return c.focus(); }
+          if (clients.openWindow) return clients.openWindow('./');
+        }));
+      });
+    `;
+    const blob = new Blob([code], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    swReg = await navigator.serviceWorker.register(url, { scope: './' });
+  } catch (e) { swReg = null; }
+}
+
+function sendNotification(t) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const title = '⏰ ' + (t.name || 'Repeat Timer');
+  const options = {
+    body: describe(t),
+    tag: 'rt-' + t.id,
+    requireInteraction: true,
+    silent: true,
+    icon: ICON_URL,
+    badge: ICON_URL,
+  };
+  try {
+    if (swReg && swReg.showNotification) {
+      swReg.showNotification(title, options);
+    } else {
+      const n = new Notification(title, options);
+      n.onclick = () => { try { window.focus(); n.close(); } catch (e) {} };
+    }
+  } catch (e) { /* swallow */ }
+}
+
+function startVibrate() {
+  if (!navigator.vibrate) return;
+  const buzz = () => { try { navigator.vibrate([500, 300, 500, 300, 900]); } catch (e) {} };
+  buzz();
+  vibTimer = setInterval(buzz, 3200);
+}
+function stopVibrate() {
+  if (vibTimer) { clearInterval(vibTimer); vibTimer = null; }
+  if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) {} }
+}
+
+function startTitleFlash() {
+  if (titleTimer) return;
+  titleTimer = setInterval(() => {
+    titleFlip = !titleFlip;
+    document.title = titleFlip ? '⏰ Reminder!' : 'Repeat Timer';
+  }, 800);
+}
+function stopTitleFlash() {
+  if (titleTimer) { clearInterval(titleTimer); titleTimer = null; }
+  document.title = 'Repeat Timer'; titleFlip = false;
+}
+
+async function requestAlarmWakeLock() {
+  try {
+    if ('wakeLock' in navigator && !alarmWakeLock) {
+      alarmWakeLock = await navigator.wakeLock.request('screen');
+      alarmWakeLock.addEventListener('release', () => { alarmWakeLock = null; });
+    }
+  } catch (e) { alarmWakeLock = null; }
+}
+function releaseAlarmWakeLock() {
+  try { if (alarmWakeLock) { alarmWakeLock.release(); alarmWakeLock = null; } } catch (e) {}
+}
+
+/* =========================================================================
+   EDITOR
+   ========================================================================= */
+function rebuildToneOptions(selected) {
+  const sel = $('#f-ringtone');
+  if (!sel) return;
+  const cur = selected || sel.value;
+
+  const builtin = Object.entries(RINGTONES)
+    .map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+
+  const custom = customRingtones.length
+    ? `<optgroup label="My uploads">` +
+      customRingtones.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('') +
+      `</optgroup>`
+    : '';
+
+  sel.innerHTML = `<optgroup label="Built-in">${builtin}</optgroup>${custom}`;
+
+  if (cur && [...sel.options].some(o => o.value === cur)) sel.value = cur;
+  else sel.value = 'chime';
+
+  updateDelBtn();
+}
+
+function updateDelBtn() {
+  const v = getVal('#f-ringtone');
+  const isCustom = customRingtones.some(r => r.id === v);
+  const btn = $('#delToneBtn');
+  if (btn) btn.classList.toggle('hidden', !isCustom);
+}
+
+function setHint(msg, isError = false) {
+  const el = $('#fileHint');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'mt-1.5 min-h-[14px] text-[11px] ' +
+    (isError ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400');
+}
+
+function buildDayChips() {
+  const el = $('#f-days');
+  if (!el) return;
+  el.innerHTML = DAY_LABELS
+    .map((d, i) => `<button type="button" data-day="${i}" class="chip chip-off">${d}</button>`)
+    .join('');
+}
+
+function syncChips() {
+  if (!draft) return;
+  $$('#f-days [data-day]').forEach(b => {
+    const on = (draft.days || []).includes(Number(b.dataset.day));
+    b.className = 'chip ' + (on ? 'chip-on' : 'chip-off');
+  });
+}
+
+function setSeg(container, attr, value) {
+  if (!container) return;
+  $$(`[${attr}]`, container).forEach(b => {
+    const on = b.getAttribute(attr) === value;
+    b.className = 'seg ' + (on
+      ? 'bg-white text-purple-700 shadow-sm dark:bg-[#2a2540] dark:text-purple-300'
+      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100');
+  });
+}
+
+function toggleSec(secName, show) {
+  const el = $(`[data-sec="${secName}"]`);
+  if (el) el.classList.toggle('hidden', !show);
+}
+
+function syncForm() {
+  if (!draft) return;
+
+  setSeg($('#f-mode'),   'data-mode', draft.mode);
+  setSeg($('#f-window'), 'data-win',  draft.windowType);
+
+  toggleSec('interval', draft.mode === 'interval');
+  toggleSec('weekly',   draft.mode === 'weekly');
+  toggleSec('monthly',  draft.mode === 'monthly');
+  toggleSec('time',     draft.mode !== 'interval');
+
+  const rangeEl = $('#f-range');
+  const showRange = draft.windowType === 'range';
+  if (rangeEl) {
+    rangeEl.classList.toggle('hidden', !showRange);
+    rangeEl.classList.toggle('grid',    showRange);
+  }
+
+  syncChips();
+  renderAllCalendars();
+}
+
+/* ---- fillForm / readForm — no #f-dom anymore ---- */
+function fillForm() {
+  if (!draft) return;
+
+  setVal('#f-name',     draft.name || '');
+  setVal('#f-interval', draft.intervalValue);
+  setVal('#f-unit',     draft.intervalUnit);
+  setVal('#f-volume',   draft.volume);
+  setChecked('#f-loop', draft.loopAlarm);
+
+  setTimePickerValue($('[data-tpicker="win-start"]'), draft.windowStart || '09:00');
+  setTimePickerValue($('[data-tpicker="win-end"]'),   draft.windowEnd   || '21:00');
+  setTimePickerValue($('[data-tpicker="time"]'),      draft.timeOfDay   || '09:00');
+
+  rebuildToneOptions(draft.ringtone);
+  setHint('');
+  syncForm();
+}
+
+function readForm() {
+  if (!draft) return;
+
+  draft.name          = (getVal('#f-name') || '').trim();
+  draft.intervalValue = Math.max(1, parseInt(getVal('#f-interval', '1'), 10) || 1);
+  draft.intervalUnit  = getVal('#f-unit', 'hours');
+  draft.ringtone      = getVal('#f-ringtone', 'chime') || 'chime';
+  draft.volume        = parseFloat(getVal('#f-volume', '0.7'));
+  if (isNaN(draft.volume)) draft.volume = 0.7;
+
+  const loopEl = $('#f-loop');
+  draft.loopAlarm = loopEl ? !!loopEl.checked : true;
+
+  draft.windowStart = getTimePickerValue($('[data-tpicker="win-start"]')) || '09:00';
+  draft.windowEnd   = getTimePickerValue($('[data-tpicker="win-end"]'))   || '21:00';
+  draft.timeOfDay   = getTimePickerValue($('[data-tpicker="time"]'))      || '09:00';
+
+  // dayOfMonth is set directly from calendar clicks — no DOM input to read.
+
+  // Days array: only meaningful for interval/weekly, from chip selection
+  const picked = $$('#f-days .chip-on').map(el => Number(el.dataset.day));
+
+  if (draft.mode === 'interval') {
+    draft.days = picked.length ? picked : [...ALL_DAYS];
+  } else if (draft.mode === 'weekly') {
+    if (!draft.days || !draft.days.length) draft.days = [new Date().getDay()];
+  }
+  // monthly mode: don't touch draft.days (not used)
+}
+
+function openEditor(id) {
+  editingId = id || null;
+  const base = id ? state.timers.find(t => t.id === id) : newTimer({ name: '' });
+  draft = JSON.parse(JSON.stringify(base || newTimer({ name: '' })));
+  if (!Array.isArray(draft.days) || !draft.days.length) draft.days = [...ALL_DAYS];
+  if (!draft.dayOfMonth) draft.dayOfMonth = new Date().getDate();
+
+  calView = { year: new Date().getFullYear(), month: new Date().getMonth() };
+
+  const ttl = $('#editorTitle');
+  if (ttl) ttl.textContent = id ? 'Edit Timer' : 'New Timer';
+
+  try {
+    fillForm();
+  } catch (err) {
+    console.error('fillForm failed:', err);
+    showToast('Could not open editor — see console', 'error');
+    return;
+  }
+
+  const el = $('#editor');
+  if (el) { el.classList.remove('hidden'); el.classList.add('flex'); }
+}
+
+function closeEditor() {
+  const el = $('#editor');
+  if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
+  stopSound();
+  editingId = null;
+  draft = null;
+}
+
+function saveEditor() {
+  if (!draft) return;
+  readForm();
+
+  if (editingId) {
+    const i = state.timers.findIndex(t => t.id === editingId);
+    if (i > -1) {
+      const old = state.timers[i];
+      draft.id        = old.id;
+      draft.createdAt = old.createdAt;
+      draft.enabled   = old.enabled;
+      draft.running   = old.running;
+      state.timers[i] = draft;
+    }
+  } else {
+    draft.id      = uid();
+    draft.enabled = true;
+    draft.running = true;
+    state.timers.push(draft);
+  }
+
+  draft.lastAt = Date.now();
+  draft.nextAt = computeNext(draft, Date.now());
+
+  saveState();
+  closeEditor();
+  render();
+  showToast('Timer saved', 'ok');
+}
+
+/* =========================================================================
+   INLINE RENAME
+   ========================================================================= */
+function startRename(el) {
+  if (!el || el.isContentEditable) return;
+  el.dataset.original = el.textContent;
+  el.setAttribute('contenteditable', 'true');
+  el.classList.add('ring-2', 'ring-purple-500/60', 'bg-white', 'dark:bg-[#1c1930]');
+  el.focus();
+  try {
+    const r = document.createRange(); r.selectNodeContents(el);
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  } catch (e) {}
+}
+
+function finishRename(el) {
+  if (!el || !el.isContentEditable) return;
+  el.removeAttribute('contenteditable');
+  el.classList.remove('ring-2', 'ring-purple-500/60', 'bg-white', 'dark:bg-[#1c1930]');
+  const id = el.dataset.name;
+  const t  = state.timers.find(x => x.id === id);
+  if (!t) return;
+  const val = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  t.name = val || 'Untitled timer';
+  el.textContent = t.name;
+  saveState();
+}
+
+function isRenaming() {
+  const ae = document.activeElement;
+  return !!(ae && ae.matches && ae.matches('[data-name][contenteditable="true"]'));
+}
+
+/* =========================================================================
+   THEME
+   ========================================================================= */
+const SUN_ICON  = `<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`;
+const MOON_ICON = `<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>`;
+
+function applyTheme() {
+  const dark = state.theme === 'dark';
+  document.documentElement.classList.toggle('dark', dark);
+  const ti = $('#themeIcon'); if (ti) ti.innerHTML = dark ? SUN_ICON : MOON_ICON;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', dark ? '#0b0a16' : '#f5f3ff');
+}
+
+/* =========================================================================
+   PWA MANIFEST
+   ========================================================================= */
+(function injectManifest() {
+  try {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs><rect width="192" height="192" rx="44" fill="url(#g)"/><circle cx="96" cy="104" r="52" fill="none" stroke="#fff" stroke-width="12"/><path d="M96 74v30l20 20" stroke="#fff" stroke-width="12" fill="none" stroke-linecap="round"/></svg>`;
+    const icon = 'data:image/svg+xml,' + encodeURIComponent(svg);
+    const manifest = {
+      name: 'Repeat Timer', short_name: 'Timer',
+      description: 'Repeating interval, weekly and monthly reminders.',
+      start_url: location.href, scope: './',
+      display: 'standalone', orientation: 'portrait',
+      background_color: '#0a0a14', theme_color: '#7c3aed',
+      icons: [
+        { src: icon, sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
+        { src: icon, sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
+      ],
+    };
+    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+    const link = document.createElement('link');
+    link.rel = 'manifest'; link.href = URL.createObjectURL(blob);
+    document.head.appendChild(link);
+  } catch (e) {}
+})();
+
+/* =========================================================================
+   EVENT BINDING
+   ========================================================================= */
+function bindUI() {
+
+  const searchEl = $('#search'); if (searchEl) searchEl.addEventListener('input', render);
+
+  const themeBtn = $('#themeBtn');
+  if (themeBtn) themeBtn.addEventListener('click', () => {
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    applyTheme(); saveState();
+  });
+
+  const addBtn = $('#addBtn');
+  if (addBtn) addBtn.addEventListener('click', () => openEditor());
+
+  const closeBtn = $('#closeEditor'); if (closeBtn) closeBtn.addEventListener('click', closeEditor);
+  const cancelBtn = $('#cancelBtn');  if (cancelBtn) cancelBtn.addEventListener('click', closeEditor);
+  const saveBtn = $('#saveBtn');      if (saveBtn) saveBtn.addEventListener('click', saveEditor);
+  const editorEl = $('#editor');
+  if (editorEl) editorEl.addEventListener('click', e => { if (e.target.id === 'editor') closeEditor(); });
+
+  /* ---- Enter to save from any input inside the editor ---- */
+  if (editorEl) editorEl.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const t = e.target;
+    if (!t) return;
+    const tag = (t.tagName || '').toUpperCase();
+    if (tag === 'SELECT' || tag === 'BUTTON' || tag === 'TEXTAREA') return;
+    if (t.isContentEditable) return;
+    if (t.closest && t.closest('.cal')) return;
+    if (t.closest && t.closest('.t-picker')) return;
+    e.preventDefault();
+    saveEditor();
+  });
+
+  /* ---- Mode segmented control ---- */
+  const modeEl = $('#f-mode');
+  if (modeEl) modeEl.addEventListener('click', e => {
+    const b = e.target.closest('[data-mode]');
+    if (!b || !draft) return;
+    draft.mode = b.dataset.mode;
+
+    if (draft.mode === 'weekly') {
+      if (!draft.days || !draft.days.length || draft.days.length === 7) {
+        draft.days = [new Date().getDay()];
+      }
+    }
+    if (draft.mode === 'monthly') {
+      if (!draft.dayOfMonth) draft.dayOfMonth = new Date().getDate();
+    }
+    calView = { year: new Date().getFullYear(), month: new Date().getMonth() };
+    syncForm();
+  });
+
+  /* ---- Window segmented control ---- */
+  const winEl = $('#f-window');
+  if (winEl) winEl.addEventListener('click', e => {
+    const b = e.target.closest('[data-win]');
+    if (!b || !draft) return;
+    draft.windowType = b.dataset.win;
+    syncForm();
+  });
+
+  /* ---- Day chips ---- */
+  const daysEl = $('#f-days');
+  if (daysEl) daysEl.addEventListener('click', e => {
+    const b = e.target.closest('[data-day]');
+    if (!b || !draft) return;
+    const d = Number(b.dataset.day);
+    if (draft.days.includes(d)) draft.days = draft.days.filter(x => x !== d);
+    else draft.days.push(d);
+    syncChips();
+  });
+
+  /* ---- Calendar delegation (at document level) ---- */
+  document.addEventListener('click', e => {
+    const prev = e.target.closest('[data-cal-prev]');
+    if (prev) {
+      calView.month--;
+      if (calView.month < 0) { calView.month = 11; calView.year--; }
+      renderAllCalendars();
+      return;
+    }
+    const next = e.target.closest('[data-cal-next]');
+    if (next) {
+      calView.month++;
+      if (calView.month > 11) { calView.month = 0; calView.year++; }
+      renderAllCalendars();
+      return;
+    }
+    const cell = e.target.closest('[data-cal-day]');
+    if (cell && draft) {
+      const container = cell.closest('[data-cal]');
+      if (!container) return;
+      const mode = container.dataset.cal;
+      const d = Number(cell.dataset.calDay);
+      const date = new Date(calView.year, calView.month, d);
+
+      if (mode === 'weekly') {
+        const dow = date.getDay();
+        if (!draft.days) draft.days = [];
+        if (draft.days.includes(dow)) draft.days = draft.days.filter(x => x !== dow);
+        else draft.days.push(dow);
+      } else if (mode === 'monthly') {
+        draft.dayOfMonth = d;
+      }
+      renderAllCalendars();
+    }
+  });
+
+  /* ---- Ringtone select: auto-preview on change ---- */
+  const ringSel = $('#f-ringtone');
+  if (ringSel) ringSel.addEventListener('change', () => {
+    if (draft) draft.ringtone = ringSel.value;
+    updateDelBtn();
+    stopSound();
+    playRingtone(ringSel.value, parseFloat(getVal('#f-volume', '0.7')) || 0.7, false);
+  });
+
+  const previewBtn = $('#previewBtn');
+  if (previewBtn) previewBtn.addEventListener('click', () => {
+    playRingtone(getVal('#f-ringtone', 'chime'), parseFloat(getVal('#f-volume', '0.7')) || 0.7, false);
+  });
+
+  /* ---- Upload local song ---- */
+  const fileInput = $('#f-file');
+  if (fileInput) fileInput.addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('audio/') && !/\.(mp3|wav|ogg|m4a|aac|flac|opus|webm)$/i.test(file.name)) {
+      setHint('Please choose an audio file (mp3, wav, m4a, ogg…).', true);
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setHint('File is too large — please pick one under 15 MB.', true);
+      return;
+    }
+
+    const id   = 'u_' + uid();
+    const name = file.name.replace(/\.[^.]+$/, '').slice(0, 40) || 'My song';
+    const rec  = { id, name, blob: file, type: file.type, added: Date.now() };
+
+    let saved = true;
+    try { await idbPut(rec); }
+    catch (err) { saved = false; console.warn('Could not persist upload:', err); }
+
+    const url = URL.createObjectURL(file);
+    customRingtones.push({ id, name, blob: file, url });
+
+    rebuildToneOptions(id);
+    setVal('#f-ringtone', id);
+    if (draft) draft.ringtone = id;
+    updateDelBtn();
+    playRingtone(id, parseFloat(getVal('#f-volume', '0.7')) || 0.7, false);
+
+    setHint(saved
+      ? `Added “${name}” — it will be remembered after power off.`
+      : `Added “${name}” for this session only (storage unavailable).`);
+  });
+
+  /* ---- Delete custom ringtone ---- */
+  const delTone = $('#delToneBtn');
+  if (delTone) delTone.addEventListener('click', async () => {
+    const id  = getVal('#f-ringtone');
+    const rec = customRingtones.find(r => r.id === id);
+    if (!rec) return;
+    if (!confirm(`Remove “${rec.name}” from your ringtones?`)) return;
+
+    stopSound();
+    try { await idbDel(id); } catch (e) {}
+    try { URL.revokeObjectURL(rec.url); } catch (e) {}
+    customRingtones = customRingtones.filter(r => r.id !== id);
+
+    state.timers.forEach(t => { if (t.ringtone === id) t.ringtone = 'chime'; });
+    if (draft && draft.ringtone === id) draft.ringtone = 'chime';
+    saveState();
+
+    rebuildToneOptions('chime');
+    setHint(`Removed “${rec.name}”.`);
+  });
+
+  /* ---- Card actions ---- */
+  const cardsEl = $('#cards');
+  if (cardsEl) cardsEl.addEventListener('click', e => {
+    const nameEl = e.target.closest('[data-name]');
+    if (nameEl) {
+      e.preventDefault();
+      e.stopPropagation();
+      startRename(nameEl);
+      return;
+    }
+
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+
+    const id = btn.dataset.id;
+    const t  = state.timers.find(x => x.id === id);
+    if (!t) return;
+
+    switch (btn.dataset.act) {
+      case 'power':
+        t.enabled = !t.enabled;
+        if (t.enabled) { t.running = true; t.lastAt = Date.now(); t.nextAt = computeNext(t, Date.now()); }
+        saveState(); render();
+        break;
+      case 'toggle':
+        t.running = !t.running;
+        if (t.running) { t.lastAt = Date.now(); t.nextAt = computeNext(t, Date.now()); }
+        saveState(); render();
+        break;
+      case 'edit':
+        openEditor(id);
+        break;
+      case 'del':
+        if (confirm(`Delete “${t.name || 'this timer'}”?`)) {
+          state.timers = state.timers.filter(x => x.id !== id);
+          if (ringingId === id) hideAlarm();
+          saveState(); render();
+        }
+        break;
+      case 'test':
+        playRingtone(t.ringtone, t.volume, false);
+        if ('Notification' in window && Notification.permission === 'granted') {
+          sendNotification({ ...t, name: t.name || 'Timer' });
+        }
+        break;
+    }
+  });
+
+  /* ---- Rename blur ---- */
+  document.addEventListener('focusout', e => {
+    const el = e.target && e.target.closest && e.target.closest('[data-name][contenteditable="true"]');
+    if (el) finishRename(el);
+  }, true);
+
+  /* ---- Global keyboard ---- */
+  document.addEventListener('keydown', e => {
+    if (isRenaming()) {
+      const el = document.activeElement;
+      if (e.key === 'Enter')  { e.preventDefault(); el.blur(); }
+      if (e.key === 'Escape') { e.preventDefault(); el.textContent = el.dataset.original || ''; el.blur(); }
+      return;
+    }
+    if (e.key === 'Escape') {
+      const ed = $('#editor');
+      const al = $('#alarm');
+      if (ed && !ed.classList.contains('hidden')) closeEditor();
+      else if (al && !al.classList.contains('hidden')) dismissAlarm();
+    }
+  });
+
+  /* ---- Audio unlock ---- */
+  const unlock = () => {
+    ensureAudio();
+    try {
+      const a = new Audio();
+      a.muted = true;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => {});
+      setTimeout(() => { try { a.pause(); } catch (e) {} }, 50);
+    } catch (e) {}
+    document.removeEventListener('pointerdown', unlock);
+    document.removeEventListener('keydown', unlock);
+  };
+  document.addEventListener('pointerdown', unlock);
+  document.addEventListener('keydown', unlock);
+
+  /* ---- Lifecycle catch-up ---- */
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); scheduleNext(); } });
+  window.addEventListener('focus', () => { tick(); scheduleNext(); });
+  window.addEventListener('pageshow', () => { tick(); scheduleNext(); });
+
+  /* ---- Notifications permission ---- */
+  if ('Notification' in window && Notification.permission === 'default') {
+    setTimeout(() => { try { Notification.requestPermission(); } catch (e) {} }, 4000);
+  }
+}
+
+/* =========================================================================
+   BOOT
+   ========================================================================= */
+(async function init() {
+  const loaded = loadState();
+  if (!loaded || !state.timers.length) seed();
+
+  await loadCustomRingtones();
+  await tryRegisterSW();
+
+  buildDayChips();
+  applyTheme();
+  bindUI();
+
+  const now = Date.now();
+  let missedCount = 0;
+  state.timers.forEach(t => {
+    if (typeof t.volume !== 'number')     t.volume = 0.7;
+    if (typeof t.loopAlarm !== 'boolean') t.loopAlarm = true;
+    if (!t.ringtone)                      t.ringtone = 'chime';
+    if (!t.dayOfMonth)                    t.dayOfMonth = new Date().getDate();
+
+    if (!t.nextAt) {
+      t.lastAt = now;
+      t.nextAt = computeNext(t, now);
+      return;
+    }
+    if (t.nextAt < now - 5 * 60000 && t.enabled && t.running) {
+      t.lastAt = t.nextAt;
+      t.nextAt = computeNext(t, now);
+      missedCount++;
+    }
+  });
+  saveState();
+
+  render();
+  setInterval(tick, 1000);
+  scheduleNext();
+
+  if (missedCount > 0) {
+    setTimeout(() => showToast(`${missedCount} reminder${missedCount > 1 ? 's' : ''} were missed while the app was closed`, 'warn'), 1200);
+  }
+
+  console.log('%c✓ Repeat Timer ready', 'color:#8b5cf6;font-weight:bold');
+})();
+</script>
+</body>
+</html>
